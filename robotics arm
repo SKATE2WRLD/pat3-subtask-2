@@ -1,0 +1,189 @@
+#include <Servo.h>
+
+// ================== 1. SERVO OBJECTS ==================
+Servo servoBase;      // Servo 1 - Base rotation
+Servo servoShoulder;  // Servo 2 - Shoulder up/down
+Servo servoElbow;     // Servo 3 - Elbow
+Servo servoGripper;   // Servo 4 - Gripper open/close
+
+// ================== 2. PIN DEFINITIONS ==================
+// DO NOT CHANGE THESE PINS
+const int BASE_PIN = 3;
+const int SHOULDER_PIN = 5;
+const int ELBOW_PIN = 6;
+const int GRIPPER_PIN = 9;
+
+// Input pins
+const int JOY_X = A0;
+const int JOY_Y = A1;
+const int POT_ELBOW = A2;
+const int BTN_GRIPPER = 4;
+
+// ================== 3. VARIABLES ==================
+int baseAngle = 90;
+int shoulderAngle = 90;
+int elbowAngle = 90;
+int gripperAngle = 10;
+
+int gripperState = 0; // 0 = Open, 1 = Closed
+
+int lastBtnState = HIGH;
+int currentBtnState;
+
+int joyXVal;
+int joyYVal;
+int potVal;
+
+// ================== 4. GRIPPER LIMITS ==================
+const int GRIPPER_OPEN = 10;
+const int GRIPPER_CLOSED = 80;
+
+// ================== 5. JOYSTICK DEAD ZONE ==================
+// This prevents small joystick fluctuations from moving the arm.
+const int JOY_X_CENTER = 512;
+const int JOY_Y_CENTER = 512;
+
+const int DEAD_ZONE = 60;
+
+// ================== 6. SETUP ==================
+void setup() {
+
+  Serial.begin(9600);
+
+  // Attach servos
+  servoBase.attach(BASE_PIN);
+  servoShoulder.attach(SHOULDER_PIN);
+  servoElbow.attach(ELBOW_PIN);
+  servoGripper.attach(GRIPPER_PIN);
+
+  // Button with internal pull-up resistor
+  pinMode(BTN_GRIPPER, INPUT_PULLUP);
+
+  // Home position
+  servoBase.write(90);
+  servoShoulder.write(90);
+  servoElbow.write(90);
+  servoGripper.write(GRIPPER_OPEN);
+
+  delay(2000);
+
+  Serial.println("Robotic Arm Ready");
+}
+
+// ================== 7. MAIN LOOP ==================
+void loop() {
+
+  readInputs();
+
+  controlGripper();
+
+  moveServos();
+
+  printValues();
+
+  delay(20);
+}
+
+// ================== 8. READ INPUTS ==================
+void readInputs() {
+
+  joyXVal = analogRead(JOY_X);
+  joyYVal = analogRead(JOY_Y);
+  potVal = analogRead(POT_ELBOW);
+
+  currentBtnState = digitalRead(BTN_GRIPPER);
+}
+
+// ================== 9. GRIPPER CONTROL ==================
+void controlGripper() {
+
+  // Button pressed = LOW
+  if (currentBtnState == LOW && lastBtnState == HIGH) {
+
+    gripperState = !gripperState;
+
+    delay(50);
+  }
+
+  lastBtnState = currentBtnState;
+
+  // Set gripper position
+  if (gripperState == 0) {
+
+    gripperAngle = GRIPPER_OPEN;
+
+  } else {
+
+    gripperAngle = GRIPPER_CLOSED;
+  }
+}
+
+// ================== 10. MOVE SERVOS ==================
+void moveServos() {
+
+  // =====================================================
+  // BASE - JOYSTICK X
+  // =====================================================
+
+  if (joyXVal > JOY_X_CENTER + DEAD_ZONE ||
+      joyXVal < JOY_X_CENTER - DEAD_ZONE) {
+
+    baseAngle = map(joyXVal, 0, 1023, 0, 180);
+
+    baseAngle = constrain(baseAngle, 0, 180);
+
+    servoBase.write(baseAngle);
+  }
+
+  // =====================================================
+  // SHOULDER - JOYSTICK Y
+  // =====================================================
+
+  if (joyYVal > JOY_Y_CENTER + DEAD_ZONE ||
+      joyYVal < JOY_Y_CENTER - DEAD_ZONE) {
+
+    shoulderAngle = map(joyYVal, 0, 1023, 30, 150);
+
+    shoulderAngle = constrain(shoulderAngle, 30, 150);
+
+    servoShoulder.write(shoulderAngle);
+  }
+
+  // =====================================================
+  // ELBOW - POTENTIOMETER
+  // =====================================================
+
+  elbowAngle = map(potVal, 0, 1023, 0, 180);
+
+  elbowAngle = constrain(elbowAngle, 0, 180);
+
+  servoElbow.write(elbowAngle);
+
+  // =====================================================
+  // GRIPPER
+  // =====================================================
+
+  servoGripper.write(gripperAngle);
+}
+
+// ================== 11. SERIAL MONITOR ==================
+void printValues() {
+
+  Serial.print("X: ");
+  Serial.print(joyXVal);
+
+  Serial.print(" | Y: ");
+  Serial.print(joyYVal);
+
+  Serial.print(" | Base: ");
+  Serial.print(baseAngle);
+
+  Serial.print(" | Shoulder: ");
+  Serial.print(shoulderAngle);
+
+  Serial.print(" | Elbow: ");
+  Serial.print(elbowAngle);
+
+  Serial.print(" | Gripper: ");
+  Serial.println(gripperAngle);
+}
